@@ -1,9 +1,11 @@
 ### Table of Contents:
-
 1) Introduction
 2) Set-up Requirements
-3) Commands 
-4) TroubleShooting
+3) Imporant Notes 
+4) Parameters
+5) Commands 
+6) Links
+
 
 
 ### Introduction:
@@ -33,7 +35,7 @@ More information about "etcd" and "confd" can be found out using below links.
 https://coreos.com/etcd/
 http://www.confd.io/
 
-#####  Set-up Requirements:
+### Set-up Requirements
 
 AWS IAM User/Role with full permission to VPC, CloudFormation, OpsWorks, EC2 and S3.
 
@@ -54,7 +56,7 @@ Linux has, by default, has already installed on it. Windows user can download th
  
 ### Important Notes 
 
-1) Chef client 11.10 is used here. 
+1) Chef client 11.10 is used here and Default OS is 'Amazon Linux 2016.03'.
 2) Make sure that IAM User has appropriate permissions to AWS CloudFormation,
 OpsWorks, EC2, IAM, S3 and CloudWatch. The IAM user requires these permissions to
 successfully execute the creation of different resources in the templates.
@@ -64,41 +66,70 @@ provided as a parameter to the template should present in that region.
 5) Make sure you pass appropriate region as a parameter while invoking create-stack. Default region
 will be selected if not provided.
 
-### Parameters for CloudFormation template
+### Parameters 
 
-AWS EC2 key-pair : Required
-EC2Instance Type : Default - t2.micro
-Service Role for OpsWorks : Default - aws-opsworks-service-role
-Instance Profile - : Default - aws-opsoworks-ec2-role
-Assign Elastic IP to EC2 instance: Default - false
+Below are the list of parameters that are passed to the cloudformation template. 
+
+1)AWS EC2 key-pair 
+Parameter Name	:	MySSHKey
+Required		: 	Yes
+
+2)EC2Instance Type 
+Parameter Name	:	MyInstanceType
+Required: 		:	Optional
+Default	Value	:   t2.micro
+
+3)Service Role & Default Instance Profile for OpsWorks
+Parameter Name 	:	CreateOpsWorksRoles
+Required		: 	Optional
+Default	Value		:	Yes
+
+4)Assign Elastic IP to EC2 instance
+Parameter Name	:	AssignElasticIP
+Required		:	Optional
+Default	Value		:	false
 
 
 AWS EC2 key-pair is mandatory parameters while the rest are optional. Default value
-will be chosen for parameters in case not provided.
+will be chosen for other parameters in case not provided.
 
-AWS CLI(Optional)
+###  Commands
 
-#####  Execution/Run 
+Please refer to below examples on how to run aws-cli commands to create, update and delete stack.
 
-Commands to create, update and delete stack
+Example 1: To create stack  called "test" with SSH Key-pair(test.pem) as the only parameter (leave the other parameters as default),run below command.
 
-eg : To just provide EC2 instance type as a parameter and leave the other parameters
-as default, run below command.
+aws cloudformation create-stack --stack-name test --template-body file:///home/ubuntu/workspace/vpc-opsworks-cf.template --parameters ParameterKey=MySSHKey,ParameterValue=test --capabilities CAPABILITY_IAM --region=us-west-2
 
-aws cloudformation create-stack --stack-name test --template-body file:///home/ubuntu/workspace/vpc-opsworks-cf.template --parameters ParameterKey=MySSHKey,ParameterValue=workstation --capabilities CAPABILITY_IAM --region=us-west-2
+
+Example 2: To create stack  called "test" with SSH Key-pair(test.pem) and EC2 Instance Type as the only parameters (leave the other parameters as default),run below command.
+
+aws cloudformation create-stack --stack-name test --template-body file:///home/ubuntu/workspace/vpc-opsworks-cf.template --parameters ParameterKey=MySSHKey,ParameterValue=test ParameterKey=MyInstanceType,ParameterValue=t2.medium --capabilities CAPABILITY_IAM --region=us-west-2
+
+Additionally, you can track the resources and delete the stack using below commands.
 
 aws cloudformation describe-stack-resources --stack-name test --region=us-west-2
 aws cloudformation list-stack-resources --stack-name test --region=us-west-2
 aws cloudformation  delete-stack --stack-name test --region=us-west-2
+
+
+### Links
+
+1) AWS CLI Configuration
+
+http://docs.aws.amazon.com/cli/latest/userguide/cli-chap-getting-started.html#cli-quick-configuration
+
+2)AWS-CLI list of commands to interact with CloudFormation stack 
 	
 http://docs.aws.amazon.com/cli/latest/reference/cloudformation/index.html#cli-aws-cloudformation
 
-The cookbook/recipes used in template for stack creation is hosted on Github at below location.
+3)Cookbook/recipes used in template for stack creation - hosted on Github.
 
 https://github.com/rutwickjain/aws
 
 Cookbook Name: vpc-opsworks-cf
 
-### TroubleShooting
+
+ 
 
 
