@@ -1,0 +1,104 @@
+### Table of Contents:
+
+1) Introduction
+2) Set-up Requirements
+3) Commands 
+4) TroubleShooting
+
+
+### Introduction:
+
+This is a sample project which demonstrates the use of AWS Cloudformation
+on how to work with AWS OpsWorks and VPC in context of a sample workflow.
+
+The cloudformation uses a template which creates a VPC  and an OpsWorks stack
+and a layer with specific configurations, within that VPC. The template 
+also create an EC2 instance in the configured OpsWorks layer which will 
+execute a sample use case based on the configuration and recipes defined
+for that layer. This specific configuration includes installing "etcd"
+- a distributed key value store that provides a reliable way to store data
+across a cluster of machines and "confd" -  a service to manage local
+application configuration files using templates and data from etcd, consul
+or other such services.
+
+The sample use case is basically launching an instance EC2 instance in OpsWorks,
+configuring etcd on it, downloading a sample ".pem" file from AWS S3 and storing
+it as key-value pair in etcd, and eventually invoking confd to create a file named
+"foo" under /tmp with content as the value of the stored key. At the end of this
+workflow, one can login to the EC2 instance and locate file /tmp/foo which will 
+display the content of the .pem file.
+
+More information about "etcd" and "confd" can be found out using below links.
+
+https://coreos.com/etcd/
+http://www.confd.io/
+
+#####  Set-up Requirements:
+
+AWS IAM User/Role with full permission to VPC, CloudFormation, OpsWorks, EC2 and S3.
+
+VPC - For our requirement, we are just going to create one public subnet. We do 
+not necessarily require any private subnet for this particular use case and hence
+we won't be requiring any NAT instance to be created in public subnet as well.
+
+To create the entire infrastructure stack, we will use an already defined AWS Cloud
+Formation template hosted on Github. To invoke AWS CloudFormation using this template,
+we can use either of the below two options:
+1) AWS CloudFormation console 
+2) AWS command-line (AWS CLI)
+
+If you are using AWS CLI, make sure it is installed and configured with appropriate IAM credentials
+on your machine. You can install aws-cli from apt or yum repositories depending on your OS. Amazon 
+Linux has, by default, has already installed on it. Windows user can download the MSI installer.
+ 
+ 
+### Important Notes 
+
+1) Chef client 11.10 is used here. 
+2) Make sure that IAM User has appropriate permissions to AWS CloudFormation,
+OpsWorks, EC2, IAM, S3 and CloudWatch. The IAM user requires these permissions to
+successfully execute the creation of different resources in the templates.
+3) Be sure to select the appropriate region where you want to create the stack. Also, the SSH Key
+provided as a parameter to the template should present in that region.
+4) MySSHKey parameter is mandatory.
+5) Make sure you pass appropriate region as a parameter while invoking create-stack. Default region
+will be selected if not provided.
+
+### Parameters for CloudFormation template
+
+AWS EC2 key-pair : Required
+EC2Instance Type : Default - t2.micro
+Service Role for OpsWorks : Default - aws-opsworks-service-role
+Instance Profile - : Default - aws-opsoworks-ec2-role
+Assign Elastic IP to EC2 instance: Default - false
+
+
+AWS EC2 key-pair is mandatory parameters while the rest are optional. Default value
+will be chosen for parameters in case not provided.
+
+AWS CLI(Optional)
+
+#####  Execution/Run 
+
+Commands to create, update and delete stack
+
+eg : To just provide EC2 instance type as a parameter and leave the other parameters
+as default, run below command.
+
+aws cloudformation create-stack --stack-name test --template-body file:///home/ubuntu/workspace/vpc-opsworks-cf.template --parameters ParameterKey=MySSHKey,ParameterValue=workstation --capabilities CAPABILITY_IAM --region=us-west-2
+
+aws cloudformation describe-stack-resources --stack-name test --region=us-west-2
+aws cloudformation list-stack-resources --stack-name test --region=us-west-2
+aws cloudformation  delete-stack --stack-name test --region=us-west-2
+	
+http://docs.aws.amazon.com/cli/latest/reference/cloudformation/index.html#cli-aws-cloudformation
+
+The cookbook/recipes used in template for stack creation is hosted on Github at below location.
+
+https://github.com/rutwickjain/aws
+
+Cookbook Name: vpc-opsworks-cf
+
+### TroubleShooting
+
+
