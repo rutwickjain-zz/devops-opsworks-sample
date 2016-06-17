@@ -1,0 +1,425 @@
+{
+	"AWSTemplateFormatVersion": "2010-09-09",
+	"Description": "Template to create VPC, OpsWorks stack and layer , and launch EC2 instance in the OpsWorks layer.",
+
+	"Parameters": {
+		"CreateOpsWorksRoles": {
+			"Description": "Yes = create new IAM roles, or No = use existing IAM roles ",
+			"Type": "String",
+			"Default": "Yes",
+			"AllowedValues": [
+				"Yes",
+				"No"
+			]
+		},
+
+		"MyInstanceType": {
+			"Default": "t2.micro",
+			"Description": "Type of EC2 instance to be launched in OpsWorks",
+			"Type": "String",
+			"AllowedValues": [ 
+				"t2.micro",
+				"t2.small",
+				"t2.medium"
+			]
+			
+		},
+
+		"AssignElasticIP": {
+			"Default": "false",
+			"Description": "Please choose 'true' to assign Elastic IP to EC2 instance",
+			"Type": "String",
+			"AllowedValues": [
+				"true",
+				"false"
+			]
+		},
+
+		"MySSHKey": {
+			"Description": "Please provide the SSH Key to be associated with the EC2 instance",
+			"Type": "AWS::EC2::KeyPair::KeyName",
+			"ConstraintDescription" : "Can contain only ASCII characters."
+		}
+	},
+
+	"Conditions": {
+		"CreateOpsWorksRolesCondition": {
+			"Fn::Equals": [{
+					"Ref": "CreateOpsWorksRoles"
+				},
+				"Yes"
+			]
+		},
+		"NotCreateOpsWorksRolesCondition": {
+			"Fn::Equals": [{
+					"Ref": "CreateOpsWorksRoles"
+				},
+				"No"
+			]
+		}
+	},
+
+	"Resources": {
+
+		"MyOpsWorksServiceRole": {
+			"Type": "AWS::IAM::Role",
+			"Condition": "CreateOpsWorksRolesCondition",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Version": "2012-10-17",
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": ["opsworks.amazonaws.com"]
+						},
+						"Action": ["sts:AssumeRole"]
+					}]
+				},
+
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "my-opsworks-service-role",
+					"PolicyDocument": {
+						"Statement": [{
+							"Action": [
+								"ec2:*",
+								"iam:PassRole",
+								"cloudwatch:GetMetricStatistics",
+								"cloudwatch:DescribeAlarms",
+								"ecs:*",
+								"elasticloadbalancing:*",
+								"rds:*"
+							],
+
+							"Effect": "Allow",
+							"Resource": [
+								"*"
+							]
+						}]
+					}
+				}]
+			}
+		},
+
+		"MyOpsWorksEC2Role": {
+			"Type": "AWS::IAM::Role",
+			"Condition": "CreateOpsWorksRolesCondition",
+			"Properties": {
+				"AssumeRolePolicyDocument": {
+					"Statement": [{
+						"Effect": "Allow",
+						"Principal": {
+							"Service": [
+								"ec2.amazonaws.com"
+							]
+						},
+						"Action": [
+							"sts:AssumeRole"
+						]
+					}]
+				},
+				"Path": "/",
+				"Policies": [{
+					"PolicyName": "my-opsworks-ec2-role",
+					"PolicyDocument": {
+						"Statement": [{
+							"Effect": "Allow",
+							"Action": [
+								"ec2:DescribeInstances",
+								"ec2:DescribeRegions",
+								"ec2:DescribeSecurityGroups",
+								"ec2:DescribeTags",
+								"cloudwatch:PutMetricData"
+							],
+							"Resource": "*"
+						}]
+					}
+				}]
+			}
+		},
+
+
+		"MyOpsWorksEC2Profile": {
+			"Type": "AWS::IAM::InstanceProfile",
+			"Condition": "CreateOpsWorksRolesCondition",
+			"Properties": {
+				"Path": "/",
+				"Roles": [{
+					"Ref": "MyOpsWorksEC2Role"
+				}]
+			}
+		},
+
+
+		"VPC": {
+			"Type": "AWS::EC2::VPC",
+			"Properties": {
+				"CidrBlock": "10.0.0.0/16",
+				"EnableDnsSupport" : "true",
+				"EnableDnsHostnames" : "true",
+				"Tags": [{
+					"Key": "Application",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}, {
+					"Key": "Network",
+					"Value": "Public"
+				}]
+
+
+			}
+
+		},
+
+		"PublicSubnet": {
+			"Type": "AWS::EC2::Subnet",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"CidrBlock": "10.0.0.0/24",
+				"MapPublicIpOnLaunch": "true",
+				"Tags": [{
+					"Key": "Application",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}, {
+					"Key": "Network",
+					"Value": "Public"
+				}]
+			}
+		},
+
+		"InternetGateway": {
+			"Type": "AWS::EC2::InternetGateway",
+			"Properties": {
+				"Tags": [{
+					"Key": "Application",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}, {
+					"Key": "Network",
+					"Value": "Public"
+				}]
+			}
+		},
+
+		"GatewayToInternet": {
+			"Type": "AWS::EC2::VPCGatewayAttachment",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"InternetGatewayId": {
+					"Ref": "InternetGateway"
+				}
+			}
+		},
+
+		"PublicRouteTable": {
+			"Type": "AWS::EC2::RouteTable",
+			"Properties": {
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"Tags": [{
+					"Key": "Application",
+					"Value": {
+						"Ref": "AWS::StackName"
+					}
+				}, {
+					"Key": "Network",
+					"Value": "Public"
+				}]
+			}
+		},
+
+		"PublicRoute": {
+			"Type": "AWS::EC2::Route",
+			"Properties": {
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				},
+				"DestinationCidrBlock": "0.0.0.0/0",
+				"GatewayId": {
+					"Ref": "InternetGateway"
+				}
+			}
+		},
+		"PublicSubnetRouteTableAssociation": {
+			"Type": "AWS::EC2::SubnetRouteTableAssociation",
+			"Properties": {
+				"SubnetId": {
+					"Ref": "PublicSubnet"
+				},
+				"RouteTableId": {
+					"Ref": "PublicRouteTable"
+				}
+			}
+		},
+
+		"test": {
+			"Type": "AWS::OpsWorks::Stack",
+			"Properties": {
+				"Name": {
+					"Ref": "AWS::StackName"
+				},
+				"ConfigurationManager": {
+					"Name": "Chef",
+					"Version": "11.10"
+				},
+				"ServiceRoleArn": {
+					"Fn::If": [
+						"CreateOpsWorksRolesCondition",
+						{
+							"Fn::GetAtt": [
+								"MyOpsWorksServiceRole",
+								"Arn"
+							]
+						},
+						{
+							"Fn::Join": [
+								"", [
+									"arn:aws:iam::", {
+										"Ref": "AWS::AccountId"
+									},
+									":role/aws-opsworks-service-role"
+									
+								]
+							]
+						}
+					]
+				},
+			
+
+				"DefaultInstanceProfileArn": {
+					"Fn::If": [
+						"CreateOpsWorksRolesCondition",
+						{
+							"Fn::GetAtt": [
+								"MyOpsWorksEC2Profile",
+								"Arn"
+							]
+						},
+						{
+							"Fn::Join": [
+								"", [
+									"arn:aws:iam::", {
+										"Ref": "AWS::AccountId"
+									},
+									":role/aws-opsworks-service-role"
+								]
+							]
+						
+						}
+					]	
+				},	
+
+				"DefaultOs": "Amazon Linux 2016.03",
+				"DefaultRootDeviceType": "ebs",
+				"DefaultSshKeyName": {
+					"Ref": "MySSHKey"
+				},
+				"VpcId": {
+					"Ref": "VPC"
+				},
+				"DefaultSubnetId": {
+					"Ref": "PublicSubnet"
+				},
+				"UseCustomCookbooks": "true",
+				"CustomCookbooksSource": {
+					"Type": "git",
+					"Url": "git://github.com/rutwickjain/aws.git"
+				}
+			}
+		},
+
+
+		"etcd": {
+			"Type": "AWS::OpsWorks::Layer",
+			"Properties": {
+				"StackId": {
+					"Ref": "test"
+				},
+				"Name": "etcd",
+				"Type": "custom",
+				"Shortname": "etcd",
+				"EnableAutoHealing": "true",
+				"AutoAssignElasticIps": {
+					"Ref": "AssignElasticIP"
+				},
+				"AutoAssignPublicIps": "true",
+				"CustomRecipes": {
+					"Setup": ["vpc-opsworks-cf::config_dependencies", "vpc-opsworks-cf::download_keys_s3", "vpc-opsworks-cf::config_etcd", "vpc-opsworks-cf::store_keys_etcd", "vpc-opsworks-cf::config_confd"]
+
+				}
+			}
+
+		},
+
+		"myopsinstance": {
+			"Type": "AWS::OpsWorks::Instance",
+			"Properties": {
+				"StackId": {
+					"Ref": "test"
+				},
+
+				"LayerIds": [{
+					"Ref": "etcd"
+				}],
+
+				"SubnetId": {
+					"Ref": "PublicSubnet"
+				},
+				"InstanceType": {
+					"Ref": "MyInstanceType"
+				}
+			}
+		}
+	},
+
+
+	"Outputs": {
+
+		"VPC": {
+			"Description": "VPC",
+			"Value": {
+				"Ref": "VPC"
+			}
+		},
+
+		"PublicSubnet": {
+			"Description": "Public Subnet",
+			"Value": {
+				"Ref": "PublicSubnet"
+			}
+		},
+
+		"MyStack": {
+			"Description": "OpsWorks Stack",
+			"Value": {
+				"Ref": "test"
+			}
+		},
+
+		"MyLayer": {
+			"Description": "OpsWorkslayer",
+			"Value": {
+				"Ref": "etcd"
+			}
+		},
+
+		"OpsWorksEC2Instance": {
+			"Description": "Instance-Id",
+			"Value": {
+				"Ref": "myopsinstance"
+			}
+		}
+
+
+	}
+
+}
